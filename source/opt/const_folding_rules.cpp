@@ -1085,6 +1085,34 @@ bool CompareFloatingPoint(bool op_result, bool op_unordered,
     return nullptr;                                                       \
   }
 
+#define FOLD_SCMP_OP(op)                                                  \
+  [](const analysis::Type* result_type, const analysis::Constant* a,      \
+     const analysis::Constant* b,                                         \
+     analysis::ConstantManager* const_mgr) -> const analysis::Constant* { \
+    assert(result_type != nullptr && a != nullptr && b != nullptr);       \
+    assert(result_type->AsBool());                                        \
+    assert(a->type() == b->type());                                       \
+    std::int64_t ia = a->GetSignExtendedValue();                          \
+    std::int64_t ib = b->GetSignExtendedValue();                          \
+    bool result = ia op ib;                                               \
+    std::vector<uint32_t> words = {uint32_t(result)};                     \
+    return const_mgr->GetConstant(result_type, words);                    \
+  }
+
+#define FOLD_UCMP_OP(op)                                                  \
+  [](const analysis::Type* result_type, const analysis::Constant* a,      \
+     const analysis::Constant* b,                                         \
+     analysis::ConstantManager* const_mgr) -> const analysis::Constant* { \
+    assert(result_type != nullptr && a != nullptr && b != nullptr);       \
+    assert(result_type->AsBool());                                        \
+    assert(a->type() == b->type());                                       \
+    std::uint64_t ia = a->GetZeroExtendedValue();                         \
+    std::uint64_t ib = b->GetZeroExtendedValue();                         \
+    bool result = ia op ib;                                               \
+    std::vector<uint32_t> words = {uint32_t(result)};                     \
+    return const_mgr->GetConstant(result_type, words);                    \
+  }
+
 // Define the folding rules for ordered and unordered comparison for floating
 // point values.
 ConstantFoldingRule FoldFOrdEqual() {
@@ -1122,6 +1150,35 @@ ConstantFoldingRule FoldFOrdGreaterThanEqual() {
 }
 ConstantFoldingRule FoldFUnordGreaterThanEqual() {
   return FoldFPBinaryOp(FOLD_FPCMP_OP(>=, false));
+}
+
+ConstantFoldingRule FoldOpIEqual() { return FoldFPBinaryOp(FOLD_UCMP_OP(==)); }
+ConstantFoldingRule FoldOpINotEqual() {
+  return FoldFPBinaryOp(FOLD_UCMP_OP(!=));
+}
+ConstantFoldingRule FoldOpUGreaterThan() {
+  return FoldFPBinaryOp(FOLD_UCMP_OP(>));
+}
+ConstantFoldingRule FoldOpSGreaterThan() {
+  return FoldFPBinaryOp(FOLD_SCMP_OP(>));
+}
+ConstantFoldingRule FoldOpUGreaterThanEqual() {
+  return FoldFPBinaryOp(FOLD_UCMP_OP(>=));
+}
+ConstantFoldingRule FoldOpSGreaterThanEqual() {
+  return FoldFPBinaryOp(FOLD_SCMP_OP(>=));
+}
+ConstantFoldingRule FoldOpULessThan() {
+  return FoldFPBinaryOp(FOLD_UCMP_OP(<));
+}
+ConstantFoldingRule FoldOpSLessThan() {
+  return FoldFPBinaryOp(FOLD_SCMP_OP(<));
+}
+ConstantFoldingRule FoldOpULessThanEqual() {
+  return FoldFPBinaryOp(FOLD_UCMP_OP(<=));
+}
+ConstantFoldingRule FoldOpSLessThanEqual() {
+  return FoldFPBinaryOp(FOLD_SCMP_OP(<=));
 }
 
 // Folds an OpDot where all of the inputs are constants to a
@@ -1712,6 +1769,50 @@ const analysis::Constant* FoldScalarUConvert(
   value = utils::ClearHighBits(value, 64 - operand_type->width());
   return const_mgr->GenerateIntegerConstant(integer_type, value);
 }
+
+BinaryScalarFoldingRule foldShiftOp(spv::Op op) {
+  return
+      [op](const analysis::Type* result_type, const analysis::Constant* a,
+           const analysis::Constant* b,
+           analysis::ConstantManager* const_mgr) -> const analysis::Constant* {
+        assert(result_type != nullptr && a != nullptr && b != nullptr);
+        const analysis::Integer* integer_type = result_type->AsInteger();
+        assert(integer_type != nullptr);
+        assert(a->type()->kind() == analysis::Type::kInteger);
+        assert(b->type()->kind() == analysis::Type::kInteger);
+
+        uint64_t ia = op == spv::Op::OpShiftRightArithmetic
+                          ? a->GetSignExtendedValue()
+                          : a->GetZeroExtendedValue();
+        uint64_t ib = b->GetZeroExtendedValue();
+
+        uint64_t result = 0;
+
+        if (ib >= a->type()->AsInteger()->width()) {
+          result = 0;
+        } else {
+          switch (op) {
+            case spv::Op::OpShiftLeftLogical:
+              result = ia << ib;
+              break;
+            case spv::Op::OpShiftRightLogical:
+              result = ia >> ib;
+              break;
+            case spv::Op::OpShiftRightArithmetic:
+              result = static_cast<std::int64_t>(ia) >> ib;
+              break;
+
+            default:
+              assert(false);
+              break;
+          }
+        }
+
+        const analysis::Constant* result_constant =
+            const_mgr->GenerateIntegerConstant(integer_type, result);
+        return result_constant;
+      };
+}
 }  // namespace
 
 void ConstantFoldingRules::AddFoldingRules() {
@@ -1788,6 +1889,33 @@ void ConstantFoldingRules::AddFoldingRules() {
   rules_[spv::Op::OpFNegate].push_back(FoldFNegate());
   rules_[spv::Op::OpSNegate].push_back(FoldSNegate());
   rules_[spv::Op::OpQuantizeToF16].push_back(FoldQuantizeToF16());
+
+  rules_[spv::Op::OpIEqual].push_back(FoldOpIEqual());
+  rules_[spv::Op::OpINotEqual].push_back(FoldOpINotEqual());
+  rules_[spv::Op::OpUGreaterThan].push_back(FoldOpUGreaterThan());
+  rules_[spv::Op::OpSGreaterThan].push_back(FoldOpSGreaterThan());
+  rules_[spv::Op::OpUGreaterThanEqual].push_back(FoldOpUGreaterThanEqual());
+  rules_[spv::Op::OpSGreaterThanEqual].push_back(FoldOpSGreaterThanEqual());
+  rules_[spv::Op::OpULessThan].push_back(FoldOpULessThan());
+  rules_[spv::Op::OpSLessThan].push_back(FoldOpSLessThan());
+  rules_[spv::Op::OpULessThanEqual].push_back(FoldOpULessThanEqual());
+  rules_[spv::Op::OpSLessThanEqual].push_back(FoldOpSLessThanEqual());
+
+  rules_[spv::Op::OpShiftLeftLogical].push_back(
+      FoldBinaryOp(foldShiftOp(spv::Op::OpShiftLeftLogical)));
+  rules_[spv::Op::OpShiftRightLogical].push_back(
+      FoldBinaryOp(foldShiftOp(spv::Op::OpShiftRightLogical)));
+  rules_[spv::Op::OpShiftRightArithmetic].push_back(
+      FoldBinaryOp(foldShiftOp(spv::Op::OpShiftRightArithmetic)));
+  rules_[spv::Op::OpBitwiseAnd].push_back(
+      FoldBinaryOp(FoldBinaryIntegerOperation<Unsigned>(
+          [](uint64_t a, uint64_t b) { return a & b; })));
+  rules_[spv::Op::OpBitwiseOr].push_back(
+      FoldBinaryOp(FoldBinaryIntegerOperation<Unsigned>(
+          [](uint64_t a, uint64_t b) { return a | b; })));
+  rules_[spv::Op::OpBitwiseXor].push_back(
+      FoldBinaryOp(FoldBinaryIntegerOperation<Unsigned>(
+          [](uint64_t a, uint64_t b) { return a ^ b; })));
 
   rules_[spv::Op::OpIAdd].push_back(
       FoldBinaryOp(FoldBinaryIntegerOperation<Unsigned>(
