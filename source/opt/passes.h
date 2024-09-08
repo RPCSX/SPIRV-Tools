@@ -91,5 +91,6 @@
 #include "source/opt/vector_dce.h"
 #include "source/opt/workaround1209.h"
 #include "source/opt/wrap_opkill.h"
+#include "source/opt/bitcast_combine_pass.h"
 
 #endif  // SOURCE_OPT_PASSES_H_

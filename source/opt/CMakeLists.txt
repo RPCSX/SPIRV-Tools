@@ -17,6 +17,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   amd_ext_to_khr.h
   analyze_live_input_pass.h
   basic_block.h
+  bitcast_combine_pass.h
   block_merge_pass.h
   block_merge_util.h
   build_module.h
@@ -139,6 +140,7 @@ set(SPIRV_TOOLS_OPT_SOURCES
   amd_ext_to_khr.cpp
   analyze_live_input_pass.cpp
   basic_block.cpp
+  bitcast_combine_pass.cpp
   block_merge_pass.cpp
   block_merge_util.cpp
   build_module.cpp

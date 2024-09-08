@@ -208,6 +208,7 @@ Optimizer& Optimizer::RegisterPerformancePasses(bool preserve_interface) {
       .RegisterPass(CreateLocalSingleStoreElimPass())
       .RegisterPass(CreateAggressiveDCEPass(preserve_interface))
       .RegisterPass(CreateSSARewritePass())
+      .RegisterPass(CreateBitCastCombinePass())
       .RegisterPass(CreateAggressiveDCEPass(preserve_interface))
       .RegisterPass(CreateVectorDCEPass())
       .RegisterPass(CreateDeadInsertElimPass())
@@ -250,6 +251,7 @@ Optimizer& Optimizer::RegisterSizePasses(bool preserve_interface) {
       .RegisterPass(CreateBlockMergePass())
       .RegisterPass(CreateLocalAccessChainConvertPass())
       .RegisterPass(CreateLocalSingleBlockLoadStoreElimPass())
+      .RegisterPass(CreateBitCastCombinePass())
       .RegisterPass(CreateAggressiveDCEPass(preserve_interface))
       .RegisterPass(CreateCopyPropagateArraysPass())
       .RegisterPass(CreateVectorDCEPass())
@@ -1198,6 +1200,11 @@ Optimizer::PassToken CreateModifyMaximalReconvergencePass(bool add) {
 Optimizer::PassToken CreateOpExtInstWithForwardReferenceFixupPass() {
   return MakeUnique<Optimizer::PassToken::Impl>(
       MakeUnique<opt::OpExtInstWithForwardReferenceFixupPass>());
+}
+
+Optimizer::PassToken CreateBitCastCombinePass() {
+  return MakeUnique<Optimizer::PassToken::Impl>(
+      MakeUnique<opt::BitCastCombinePass>());
 }
 
 }  // namespace spvtools

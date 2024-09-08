@@ -980,6 +980,9 @@ Optimizer::PassToken CreateInvocationInterlockPlacementPass();
 // Creates a pass to add/remove maximal reconvergence execution mode.
 // This pass either adds or removes maximal reconvergence from all entry points.
 Optimizer::PassToken CreateModifyMaximalReconvergencePass(bool add);
+
+
+Optimizer::PassToken CreateBitCastCombinePass();
 }  // namespace spvtools
 
 #endif  // INCLUDE_SPIRV_TOOLS_OPTIMIZER_HPP_
