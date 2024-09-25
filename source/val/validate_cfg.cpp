@@ -796,9 +796,9 @@ spv_result_t StructuredControlFlowChecks(
       for (auto pred : *block->predecessors()) {
         if (pred->structurally_reachable() && !construct_blocks.count(pred)) {
           return _.diag(SPV_ERROR_INVALID_CFG, _.FindDef(pred->id()))
-                 << "block <ID> " << pred->id() << " branches to the "
+                 << "block <ID> " << _.getIdName(pred->id()) << " branches to the "
                  << construct_name << " construct, but not to the "
-                 << header_name << " <ID> " << header->id();
+                 << header_name << " <ID> " << _.getIdName(header->id());
         }
       }
 

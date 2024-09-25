@@ -34,9 +34,13 @@ bool BitCastCombinePass::SimplifyBitcast() {
     assert(valueId != 0);
     auto value = context()->get_def_use_mgr()->GetDef(valueId);
 
-    inst->RemoveOperand(2);
-    inst->InsertOperand(2, Operand(value->GetOperand(2)));
-    modified = true;
+    if (value->opcode() == spv::Op::OpBitcast) {
+      // bitcast(X, bitcast(Y, A)) -> bitcast(X, A)
+      // inst->Dump();
+      inst->RemoveOperand(2);
+      inst->InsertOperand(2, Operand(value->GetOperand(2)));
+      modified = true;
+    }
   });
 
   return modified;
